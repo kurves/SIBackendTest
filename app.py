@@ -1,7 +1,8 @@
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_oauthlib.client import OAuth
+from requests_oauthlib import OAuth2Session
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
@@ -31,20 +32,46 @@ class Order(db.Model):
     def __repr__(self):
         return f"<Order {self.item}>"
 
-# Route to add a customer
+
+
+# OAuth configuration (replace with your OIDC provider details)
+oauth = OAuth(app)
+oauth.remote_app('oidc',
+    authorize_url='https://your_oidc_provider/authorize',
+    token_url='https://your_oidc_provider/token',
+    user_info_url='https://your_oidc_provider/userinfo',
+    client_id='your_client_id',
+    client_secret='your_client_secret',
+    scope=['openid', 'email', 'profile'],
+)
+
+
+
+@app.route('/login')
+def login():
+    return oauth.oidc.authorize(callback=url_for('callback', _external=True))
+
+
+@app.route('/callback')
+def callback():
+    token = oauth.oidc.authorize_access_token(request.url)
+    user_info = oauth.oidc.get('userinfo', token=token)
+    session['user_info'] = user_info.json()
+    return redirect('/')
+
 @app.route('/customers', methods=['POST'])
+@oauth.require_token('oidc')
 def add_customer():
     data = request.get_json()
     if 'name' not in data or 'code' not in data:
         return jsonify({'error': 'Name and code are required'}), 400
-
     customer = Customer(name=data['name'], code=data['code'])
     db.session.add(customer)
     db.session.commit()
-    return jsonify({'message': 'Customer added successfully'}), 201
+    return jsonify({'message': 'Customer added successfully'})
 
-# Route to add an order
 @app.route('/orders', methods=['POST'])
+@oauth.require_token('oidc')
 def add_order():
     data = request.get_json()
     if 'item' not in data or 'amount' not in data or 'customer_id' not in data:
@@ -53,11 +80,11 @@ def add_order():
     customer = Customer.query.get(data['customer_id'])
     if not customer:
         return jsonify({'error': 'Customer not found'}), 404
-
-    order = Order(item=data['item'], amount=data['amount'], customer_id=customer.id)
+    order = Order(item=data['item'], amount=data['amount'], time=data['time'])
     db.session.add(order)
     db.session.commit()
     return jsonify({'message': 'Order added successfully'}), 201
+
 
 # Route to get all customers
 @app.route('/customers', methods=['GET'])
@@ -78,75 +105,5 @@ if __name__ == '__main__':
         db.create_all()  # Creates tables if they do not exist
     app.run(debug=True)
 
-
-
-
-    from flask import Flask, request, jsonify, redirect, url_for, session
-from flask_sqlalchemy import SQLAlchemy
-from flask_oauthlib.client import OAuth
-from requests_oauthlib import OAuth2Session
-
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
-app.config['SECRET_KEY'] = 'your_secret_key'
-
-db = SQLAlchemy(app)
-
-# Models
-class Customer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
-    code = db.Column(db.String(50))
-
-class Order(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    item = db.Column(db.String(100))
-    amount = db.Column(db.Float)
-    time = db.Column(db.DateTime)
-
-# OAuth configuration (replace with your OIDC provider details)
-oauth = OAuth(app)
-oauth.remote_app('oidc',
-    authorize_url='https://your_oidc_provider/authorize',
-    token_url='https://your_oidc_provider/token',
-    user_info_url='https://your_oidc_provider/userinfo',
-    client_id='your_client_id',
-    client_secret='your_client_secret',
-    scope=['openid', 'email', 'profile'],
-)
-
-# Routes
-@app.route('/login')
-def login():
-    return oauth.oidc.authorize(callback=url_for('callback', _external=True))
-
-@app.route('/callback')
-def callback():
-    token = oauth.oidc.authorize_access_token(request.url)
-    user_info = oauth.oidc.get('userinfo', token=token)
-    session['user_info'] = user_info.json()
-    return redirect('/')
-
-@app.route('/customers', methods=['POST'])
-@oauth.require_token('oidc')
-def add_customer():
-    data = request.get_json()
-    customer = Customer(name=data['name'], code=data['code'])
-    db.session.add(customer)
-    db.session.commit()
-    return jsonify({'message': 'Customer added successfully'})
-
-@app.route('/orders', methods=['POST'])
-@oauth.require_token('oidc')
-def add_order():
-    data = request.get_json()
-    order = Order(item=data['item'], amount=data['amount'], time=data['time'])
-    db.session.add(order)
-    db.session.commit()
-    return jsonify({'message': 'Order added successfully'})
-
-if __name__ == '__main__':
-    db.create_all()
-    app.run(debug=True)
 
 
