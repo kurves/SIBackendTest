@@ -1,7 +1,5 @@
 from flask import Flask, request, jsonify, redirect, url_for, session, render_template
-from flask_sqlalchemy import SQLAlchemy
 from models import db, Customer, Order
-from datetime import datetime
 import json
 from os import environ as env
 from urllib.parse import quote_plus, urlencode
@@ -15,6 +13,7 @@ if ENV_FILE:
     
 app = Flask(__name__)
 app.secret_key = env.get("APP_SECRET_KEY")
+
 
 # OAuth configuration (replace with your OIDC provider details)
 oauth = OAuth(app)
@@ -31,8 +30,7 @@ oauth.register(
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
+db.init_app(app)
 
 # OAuth configuration (replace with your OIDC provider details)
 @app.route("/login")
@@ -48,7 +46,6 @@ def callback():
     return redirect("/")
 
 @app.route('/customers', methods=['POST'])
-@oauth.require_token('oidc')
 def add_customer():
     data = request.get_json()
     if 'name' not in data or 'code' not in data:
@@ -59,7 +56,6 @@ def add_customer():
     return jsonify({'message': 'Customer added successfully'})
 
 @app.route('/orders', methods=['POST'])
-@oauth.require_token('oidc')
 def add_order():
     data = request.get_json()
     if 'item' not in data or 'amount' not in data or 'customer_id' not in data:
@@ -107,7 +103,6 @@ def logout():
 @app.route("/")
 def home():
     return render_template("home.html", session=session.get('user'), pretty=json.dumps(session.get('user'), indent=4))
-
 
 if __name__ == '__main__':
     with app.app_context():
