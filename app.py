@@ -1,63 +1,51 @@
-from flask import Flask, request, jsonify, redirect, url_for, session
+from flask import Flask, request, jsonify, redirect, url_for, session, render_template
 from flask_sqlalchemy import SQLAlchemy
+from models import db, Customer, Order
 from datetime import datetime
-from flask_oauthlib.client import OAuth
-from requests_oauthlib import OAuth2Session
+import json
+from os import environ as env
+from urllib.parse import quote_plus, urlencode
+from authlib.integrations.flask_client import OAuth
+from dotenv import find_dotenv, load_dotenv
 
+
+ENV_FILE = find_dotenv()
+if ENV_FILE:
+    load_dotenv(ENV_FILE)
+    
 app = Flask(__name__)
+app.secret_key = env.get("APP_SECRET_KEY")
+
+# OAuth configuration (replace with your OIDC provider details)
+oauth = OAuth(app)
+oauth.register(
+    "auth0",
+    client_id=env.get("AUTH0_CLIENT_ID"),
+    client_secret=env.get("AUTH0_CLIENT_SECRET"),
+    client_kwargs={
+        "scope": "openid profile email",
+    },
+    server_metadata_url=f'https://{env.get("AUTH0_DOMAIN")}/.well-known/openid-configuration'
+)
+
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Customer model
-class Customer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    code = db.Column(db.String(50), unique=True, nullable=False)
-
-    def __repr__(self):
-        return f"<Customer {self.name}>"
-
-# Order model
-class Order(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    item = db.Column(db.String(100), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    time = db.Column(db.DateTime, default=datetime.utcnow)
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
-
-    customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
-
-    def __repr__(self):
-        return f"<Order {self.item}>"
-
-
-
 # OAuth configuration (replace with your OIDC provider details)
-oauth = OAuth(app)
-oauth.remote_app('oidc',
-    authorize_url='https://your_oidc_provider/authorize',
-    token_url='https://your_oidc_provider/token',
-    user_info_url='https://your_oidc_provider/userinfo',
-    client_id='your_client_id',
-    client_secret='your_client_secret',
-    scope=['openid', 'email', 'profile'],
-)
-
-
-
-@app.route('/login')
+@app.route("/login")
 def login():
-    return oauth.oidc.authorize(callback=url_for('callback', _external=True))
+    return oauth.auth0.authorize_redirect(
+        redirect_uri=url_for("callback", _external=True)
+    ) 
 
-
-@app.route('/callback')
+@app.route("/callback", methods=["GET", "POST"])
 def callback():
-    token = oauth.oidc.authorize_access_token(request.url)
-    user_info = oauth.oidc.get('userinfo', token=token)
-    session['user_info'] = user_info.json()
-    return redirect('/')
+    token = oauth.auth0.authorize_access_token()
+    session["user"] = token
+    return redirect("/")
 
 @app.route('/customers', methods=['POST'])
 @oauth.require_token('oidc')
@@ -100,10 +88,32 @@ def get_orders():
     orders_data = [{'id': order.id, 'item': order.item, 'amount': order.amount, 'time': order.time, 'customer_id': order.customer_id} for order in orders]
     return jsonify(orders_data), 200
 
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(
+        "https://" + env.get("AUTH0_DOMAIN")
+        + "/v2/logout?"
+        + urlencode(
+            {
+                "returnTo": url_for("home", _external=True),
+                "client_id": env.get("AUTH0_CLIENT_ID"),
+            },
+            quote_via=quote_plus,
+        )
+    )
+
+@app.route("/")
+def home():
+    return render_template("home.html", session=session.get('user'), pretty=json.dumps(session.get('user'), indent=4))
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()  # Creates tables if they do not exist
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=env.get("PORT", 3000))
+
 
 
 
