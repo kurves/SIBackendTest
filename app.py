@@ -5,6 +5,7 @@ from os import environ as env
 from urllib.parse import quote_plus, urlencode
 from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
+import africastalking
 
 
 ENV_FILE = find_dotenv()
@@ -69,6 +70,16 @@ def add_order():
     db.session.add(order)
     db.session.commit()
     return jsonify({'message': 'Order added successfully'}), 201
+    
+
+#send message when order is palaced
+def send_sms_alert(phone_number, item):
+    message = f"Your order for {item} has been placed successfully!"
+    try:
+        response = sms.send(message, [phone_number])
+        print(f"SMS sent: {response}")
+    except Exception as e:
+        print(f"Error sending SMS: {e}")
 
 
 # Route to get all customers
