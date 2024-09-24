@@ -32,6 +32,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+
 # OAuth configuration (replace with your OIDC provider details)
 @app.route("/login")
 def login():

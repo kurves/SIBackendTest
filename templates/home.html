@@ -1,5 +1,17 @@
-<!DOCTYPE html>
-<title></title>
-<h1>Welcome to Savanna Informatics</h1>
-
-<h4>Customer and Order Service</h4>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Savanna Informatics</title>
+  </head>
+  <body>
+    {% if session %}
+        <h1>Welcome {{session.userinfo.name}}!</h1>
+        <p><a href="/logout">Logout</a></p>
+        <div><pre>{{pretty}}</pre></div>
+    {% else %}
+        <h1>Welcome to Savanna Informatics</h1>
+        <p>Customer and Order Database</p>
+        <p><a href="/login">Login</a></p>
+    {% endif %}
+  </body>
+</html>
