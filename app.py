@@ -5,13 +5,18 @@ from os import environ as env
 from urllib.parse import quote_plus, urlencode
 from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
+import requests
 import africastalking
-
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
     load_dotenv(ENV_FILE)
     
+username = env.get("username")
+api_key = env.get("api_key")
+africastalking.initialize(username, api_key)
+sms = africastalking.SMS
+
 app = Flask(__name__)
 app.secret_key = env.get("APP_SECRET_KEY")
 
@@ -72,16 +77,6 @@ def add_order():
     return jsonify({'message': 'Order added successfully'}), 201
     
 
-#send message when order is palaced
-def send_sms_alert(phone_number, item):
-    message = f"Your order for {item} has been placed successfully!"
-    try:
-        response = sms.send(message, [phone_number])
-        print(f"SMS sent: {response}")
-    except Exception as e:
-        print(f"Error sending SMS: {e}")
-
-
 # Route to get all customers
 @app.route('/customers', methods=['GET'])
 def get_customers():
@@ -96,6 +91,37 @@ def get_orders():
     orders_data = [{'id': order.id, 'item': order.item, 'amount': order.amount, 'time': order.time, 'customer_id': order.customer_id} for order in orders]
     return jsonify(orders_data), 200
 
+
+
+def send_sms_alert(customer_id, order_id):
+    # Fetch customer from the database
+    customer = Customer.query.get(customer_id)
+    
+    if customer:
+        recipients = [customer.code]
+        message = f"Order {order_id} has been placed."
+        sender = "SI70"  
+        
+        try:
+            # Send the SMS using Africa's Talking API
+            response = sms.send(message, recipients, sender)
+            print(response)  # Log the response for debugging
+        except Exception as e:
+            print(f"Houston, we have a problem: {e}")
+    else:
+        print("Customer not found")
+
+# Define an endpoint where the SMS alert is triggered
+@app.route('/order/<int:customer_id>/<int:order_id>', methods=['GET'])
+def handle_order(customer_id, order_id):
+    order = Order.query.get(order_id)
+    
+    if order:
+        # Call send_sms_alert after placing the order
+        send_sms_alert(customer_id, order_id)
+        return f"Order {order_id} for customer {customer_id} has been placed. SMS alert sent."
+    else:
+        return "Order not found", 404
 
 @app.route("/logout")
 def logout():
