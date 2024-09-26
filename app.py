@@ -66,8 +66,10 @@ class Order(db.Model):
 # OAuth configuration (replace with your OIDC provider details)
 @app.route("/login")
 def login():
-    return oauth.authorize_redirect(redirect_uri=env.get('AUTH0_REDIRECT_URI'))
+    return oauth.auth0.authorize_redirect(redirect_uri=env.get('AUTH0_REDIRECT_URI'))
     
+   
+
 
 
 @app.route("/callback", methods=["GET", "POST"])
