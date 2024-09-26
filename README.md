@@ -178,3 +178,10 @@ pytest --cov
 #### Deployment
 
 This app can be deployed to any PaaS (e.g., Heroku) or server environment. Ensure the environment variables and database are correctly set in your production environment.
+
+#### I deployed the app on Render
+
+Checkout the app on Render
+
+[Savanna Informatics Backend Test]](https://sibackendtest.onrender.com)
+
