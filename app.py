@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, redirect, url_for, session, render_template
-from models import db, Customer, Order
 import json
 from os import environ as env
 from urllib.parse import quote_plus, urlencode
@@ -7,6 +6,11 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
 import requests
 import africastalking
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from datetime import datetime
+
+
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -19,6 +23,10 @@ sms = africastalking.SMS
 
 app = Flask(__name__)
 app.secret_key = env.get("APP_SECRET_KEY")
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 
 # OAuth configuration (replace with your OIDC provider details)
@@ -30,13 +38,30 @@ oauth.register(
     client_kwargs={
         "scope": "openid profile email",
     },
+
     server_metadata_url=f'https://{env.get("AUTH0_DOMAIN")}/.well-known/openid-configuration'
 )
 
+# customer model
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    number = db.Column(db.String(20), nullable=False)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///customers_orders.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
+    def __repr__(self):
+        return f"<Customer {self.name}>"
+
+# order model
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
+    def __repr__(self):
+        return f"<Order {self.item}>"
+
 
 
 # OAuth configuration (replace with your OIDC provider details)
@@ -45,6 +70,8 @@ def login():
     return oauth.auth0.authorize_redirect(
         redirect_uri=url_for("callback", _external=True)
     ) 
+
+
 
 @app.route("/callback", methods=["GET", "POST"])
 def callback():
@@ -57,7 +84,7 @@ def add_customer():
     data = request.get_json()
     if 'name' not in data or 'code' not in data:
         return jsonify({'error': 'Name and code are required'}), 400
-    customer = Customer(name=data['name'], code=data['code'])
+    customer = Customer(name=data['name'], code=data['code'], number=data['number'])
     db.session.add(customer)
     db.session.commit()
     return jsonify({'message': 'Customer added successfully'})
@@ -70,10 +97,11 @@ def add_order():
 
     customer = Customer.query.get(data['customer_id'])
     if not customer:
-        return jsonify({'error': 'Customer not found'}), 404
-    order = Order(item=data['item'], amount=data['amount'], time=data['time'])
+        return jsonify({'error': 'Customer not found'}), 404  
+    order = Order(item=data['item'], amount=data['amount'],customer_id=data['customer_id'] )
     db.session.add(order)
     db.session.commit()
+    send_sms_alert(customer.id, order.id)
     return jsonify({'message': 'Order added successfully'}), 201
     
 
@@ -81,33 +109,30 @@ def add_order():
 @app.route('/customers', methods=['GET'])
 def get_customers():
     customers = Customer.query.all()
-    customers_data = [{'id': customer.id, 'name': customer.name, 'code': customer.code} for customer in customers]
+    customers_data = [{'id': customer.id, 'name': customer.name, 'code': customer.code, 'number': customer.number} for customer in customers]
     return jsonify(customers_data), 200
 
 # Route to get all orders
 @app.route('/orders', methods=['GET'])
 def get_orders():
     orders = Order.query.all()
-    orders_data = [{'id': order.id, 'item': order.item, 'amount': order.amount, 'time': order.time, 'customer_id': order.customer_id} for order in orders]
+    orders_data = [{'id': order.id, 'item': order.item, 'amount': order.amount, 'customer_id': order.customer_id} for order in orders]
     return jsonify(orders_data), 200
-
 
 
 def send_sms_alert(customer_id, order_id):
     # Fetch customer from the database
     customer = Customer.query.get(customer_id)
-    
     if customer:
-        recipients = [customer.code]
-        message = f"Order {order_id} has been placed."
+        recipients = [customer.number]
+        message = f"Hello, Your Order {order_id} has been placed."
         sender = "SI70"  
-        
         try:
             # Send the SMS using Africa's Talking API
             response = sms.send(message, recipients, sender)
             print(response)  # Log the response for debugging
         except Exception as e:
-            print(f"Houston, we have a problem: {e}")
+            print(f"Order Couldn't be Placed: {e}")
     else:
         print("Customer not found")
 
