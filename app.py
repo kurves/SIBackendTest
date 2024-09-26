@@ -13,7 +13,7 @@ from flask_migrate import Migrate
 ENV_FILE = find_dotenv()
 if ENV_FILE:
     load_dotenv(ENV_FILE)
-    
+
 username = env.get("username")
 api_key = env.get("api_key")
 
@@ -66,10 +66,8 @@ class Order(db.Model):
 # OAuth configuration (replace with your OIDC provider details)
 @app.route("/login")
 def login():
-    return oauth.auth0.authorize_redirect(
-        redirect_uri=url_for("callback", _external=True)
-    ) 
-
+    return oauth.authorize_redirect(redirect_uri=env.get('AUTH0_REDIRECT_URI'))
+    
 
 
 @app.route("/callback", methods=["GET", "POST"])
@@ -84,9 +82,14 @@ def add_customer():
     if 'name' not in data or 'code' not in data:
         return jsonify({'error': 'Name and code are required'}), 400
     customer = Customer(name=data['name'], code=data['code'], number=data['number'])
-    db.session.add(customer)
-    db.session.commit()
-    return jsonify({'message': 'Customer added successfully'})
+    try:
+        db.session.add(customer)
+        db.session.commit()
+        return jsonify({'message': 'Customer added successfully'}), 201
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of an error
+        return jsonify({'error': str(e)}), 500
+
 
 
 def send_sms_alert(customer_id, order_id):
