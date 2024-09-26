@@ -5,4 +5,4 @@ requests>=2.27.1
 gunicorn==20.1.0
 africastalking
 flask_sqlalchemy
-
+Flask-Migrate
