@@ -12,57 +12,61 @@ This repository contains a Flask-based service that manages customers and orders
 ### Prerequisites
 Before running this application, make sure you have the following dependencies installed:
 
-Python 3.8+
-pip (Python package installer)
-Africa's Talking API credentials (username and API key)
-OAuth provider credentials (e.g., Auth0)
-SQLite for the database (already included with Python)
+- Python 3.8+
+- pip (Python package installer)
+- Africa's Talking API credentials (username and API key)
+- OAuth provider credentials (e.g., Auth0)
+- SQLite for the database (already included with Python)
 
 
 ### Installation
 
-**Clone the repository:
+#### Clone the repository:
 
-bash
-Copy code
-git clone <https://github.com/kurves/SIBackendTest>
-cd <SIBackendTest>
+```
+- git clone <https://github.com/kurves/SIBackendTest>
 
-**Create and activate a Python virtual environment:
-bash
-Copy code
+- cd SIBackendTest
+```
+
+#### Create and activate a Python virtual environment:
+
+```
+
 python3 -m venv venv
+
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-Install the required packages:
-bash
-Copy code
+#### Install the required packages:
+
+```
 pip install -r requirements.txt
-Set up the environment variables in a .env file (copy from .env.example):
+```
+#### Set up the environment variables in a .env file (copy from .env.example):
 
-bash
-Copy code
+```
 cp .env.example .env
+
+```
 Update the following variables in the .env file with your credentials:
 
-username: Africa's Talking API username.
-api_key: Africa's Talking API key.
-AUTH0_CLIENT_ID: Your OAuth provider's client ID (e.g., Auth0).
-AUTH0_CLIENT_SECRET: Your OAuth provider's client secret.
-AUTH0_DOMAIN: Your OAuth provider's domain.
-AUTH0_REDIRECT_URI: The redirect URI for OAuth callbacks (e.g., http://localhost:3000/callback).
-APP_SECRET_KEY: A secret key for session management in Flask.
+* username: Africa's Talking API username.
+* api_key: Africa's Talking API key.
+* AUTH0_CLIENT_ID: Your OAuth provider's client ID (e.g., Auth0).
+* AUTH0_CLIENT_SECRET: Your OAuth provider's client secret.
+* AUTH0_DOMAIN: Your OAuth provider's domain.
+* AUTH0_REDIRECT_URI: The redirect URI for OAuth callbacks (e.g., http://localhost:3000/callback).
+* APP_SECRET_KEY: A secret key for session management in Flask.
 
 ### Set up the database:
 
-bash
-Copy code
 flask db upgrade
-Run the Flask application:
 
-bash
-Copy code
+#### Run the Flask application:
+
 python app.py
+
 The app will start at http://localhost:3000.
 
 #### API Endpoints
@@ -73,7 +77,6 @@ Add Customer
 POST /customers
 Request Body (JSON):
 
-json
 ```
 {
     "name": "John Doe",
@@ -125,7 +128,8 @@ Response:
 {
     "message": "Order added successfully"
 }
-``
+```
+
 
 Get Orders
 GET /orders
@@ -171,5 +175,6 @@ pytest --cov
 
 ```
 
-Deployment
+#### Deployment
+
 This app can be deployed to any PaaS (e.g., Heroku) or server environment. Ensure the environment variables and database are correctly set in your production environment.
