@@ -8,8 +8,6 @@ import requests
 import africastalking
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from datetime import datetime
-
 
 
 ENV_FILE = find_dotenv()
@@ -18,6 +16,7 @@ if ENV_FILE:
     
 username = env.get("username")
 api_key = env.get("api_key")
+
 africastalking.initialize(username, api_key)
 sms = africastalking.SMS
 
@@ -89,13 +88,32 @@ def add_customer():
     db.session.commit()
     return jsonify({'message': 'Customer added successfully'})
 
+
+def send_sms_alert(customer_id, order_id):
+    # Fetch customer from the database
+    customer = db.session.get(Customer, customer_id)
+    if customer:
+        recipients = [customer.number]
+        print(recipients)
+        message = f"Hello, Your Order {order_id} has been placed."
+        #sender = "SI70"  
+        try:
+            # Send the SMS using Africa's Talking API
+            response = sms.send(message, recipients)
+            print(response)  # Log the response for debugging
+        except Exception as e:
+            print(f"Order Couldn't be Placed: {e}")
+    else:
+        print("Customer not found")
+
 @app.route('/orders', methods=['POST'])
 def add_order():
     data = request.get_json()
     if 'item' not in data or 'amount' not in data or 'customer_id' not in data:
         return jsonify({'error': 'Item, amount, and customer_id are required'}), 400
 
-    customer = Customer.query.get(data['customer_id'])
+
+    customer = db.session.get(Customer, data['customer_id'])
     if not customer:
         return jsonify({'error': 'Customer not found'}), 404  
     order = Order(item=data['item'], amount=data['amount'],customer_id=data['customer_id'] )
@@ -119,22 +137,6 @@ def get_orders():
     orders_data = [{'id': order.id, 'item': order.item, 'amount': order.amount, 'customer_id': order.customer_id} for order in orders]
     return jsonify(orders_data), 200
 
-
-def send_sms_alert(customer_id, order_id):
-    # Fetch customer from the database
-    customer = Customer.query.get(customer_id)
-    if customer:
-        recipients = [customer.number]
-        message = f"Hello, Your Order {order_id} has been placed."
-        sender = "SI70"  
-        try:
-            # Send the SMS using Africa's Talking API
-            response = sms.send(message, recipients, sender)
-            print(response)  # Log the response for debugging
-        except Exception as e:
-            print(f"Order Couldn't be Placed: {e}")
-    else:
-        print("Customer not found")
 
 # Define an endpoint where the SMS alert is triggered
 @app.route('/order/<int:customer_id>/<int:order_id>', methods=['GET'])
